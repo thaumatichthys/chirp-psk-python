@@ -1,6 +1,28 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from parameters import *
+from collections import deque
 
+class StreamingFIR:
+    def __init__(self, taps):
+        """
+        taps: 1D numpy array of FIR coefficients
+        """
+        self.taps = taps
+        self.N = len(taps)
+        # delay line initialized with zeros
+        self.buffer = deque([0.0]*self.N, maxlen=self.N)
+
+    def pushValue(self, sample):
+        """
+        Push a new sample in and return one filtered output.
+        """
+        # append new sample, auto-drops oldest
+        self.buffer.append(sample)
+        # convert to array for dot product
+        buf_arr = np.array(self.buffer)
+        # compute y[n] = sum taps[k] * x[n-k]
+        return (np.dot(self.taps, buf_arr[::-1]))
 
 def srrc_filter(alpha, sps, num_symbols):
     """
@@ -32,7 +54,43 @@ def srrc_filter(alpha, sps, num_symbols):
             h[i] = num / den / np.sqrt(T)
     h /= np.sqrt(np.sum(h ** 2))
     return h
+def rc_filter(alpha, sps, num_symbols):
+    """
+    Generate Raised‑Cosine (RC) filter taps.
 
+    Parameters:
+    - alpha: Roll‑off factor (0 < alpha <= 1)
+    - sps:   Samples per symbol (integer)
+    - num_symbols: Filter span on each side of zero (in symbols)
+
+    Returns:
+    - h: 1D numpy array of RC impulse response taps
+    """
+    T = 1.0
+    # time axis
+    t = np.arange(-num_symbols * T, num_symbols * T + 1/sps, 1/sps)
+    h = np.zeros_like(t)
+
+    for i, ti in enumerate(t):
+        x = ti / T
+        denom = 1 - (2 * alpha * x)**2
+
+        # handle t = 0
+        if np.isclose(x, 0.0):
+            h[i] = 1.0
+
+        # handle denominator = 0 --> t = ±T/(2α)
+        elif np.isclose(abs(2 * alpha * x), 1.0):
+            # L'Hôpital limit at the singularity
+            h[i] = (np.pi / 4) * np.sinc(1/(2*alpha))
+
+        else:
+            # sinc term times cosine roll‑off, over the denom
+            h[i] = np.sinc(x) * np.cos(np.pi * alpha * x) / denom
+
+    # Normalize for unity DC gain (sum of taps = 1)
+    h /= np.sum(h)
+    return h
 
 def apply_fir(samples, taps):
     """
@@ -47,6 +105,16 @@ def apply_fir(samples, taps):
     """
     # 'same' mode to keep output length = input length
     return np.convolve(samples, taps, mode='same')
+
+
+# SRRC for RF pulse shaping
+alpha = 0.25  # Roll-off factor
+span = 6  # Filter span in symbols
+taps = srrc_filter(alpha, (samples_per_symbol_carrier / CHIRP_BW_COEFF), span)
+
+
+# RC for symbol low pass filtering (RC instead of LPF for ISI reduction)
+taps_baseband = rc_filter(0.8, CHIRP_BW_COEFF, 2)
 
 
 # # Example usage:
