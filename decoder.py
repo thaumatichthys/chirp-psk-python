@@ -5,14 +5,13 @@ import matplotlib.pyplot as plt
 from misc import *
 from clockrecovery import *
 from text_decoder import *
+from CircularMean import *
 
-
-samplerate, data = wavfile.read("chirpss-9.wav")
+samplerate, data = wavfile.read("chirpss-10.wav")
 
 duration = len(data) / samplerate
 
 times = np.linspace(0, duration, len(data))
-
 
 i_filter = StreamingFIR(taps)
 q_filter = StreamingFIR(taps)
@@ -27,13 +26,14 @@ dummy2 = []
 dumm3 = []
 dummy4 = []
 
+up_coherence = CircularMean()
+down_coherence = CircularMean()
+
 output_bits = []
 
 n_baseband = 0
 
-fft_buffer = []
-
-random_offset = 234
+random_offset = 1
 
 for i in range(len(times) - random_offset):
     # giant loop
@@ -52,7 +52,6 @@ for i in range(len(times) - random_offset):
         n_baseband += 1
 
         baseband = i_baseband + 1j * q_baseband
-        # dummy.append(i_baseband)
 
         baseband_phase = np.pi * (n_baseband * n_baseband / samples_per_symbol_baseband - n_baseband)
         baseband_chirp_up = np.exp(1j * baseband_phase)
@@ -61,32 +60,20 @@ for i in range(len(times) - random_offset):
         dechirp_up = baseband * baseband_chirp_up
         dechirp_down = baseband * baseband_chirp_down
 
-        fft_buffer.append(dechirp_down + dechirp_up)
+        up_coh = np.abs(up_coherence.PushValue(dechirp_up))
+        down_coh = np.abs(down_coherence.PushValue(dechirp_down))
 
-        dechirped_up_lowpassed = np.abs(baseband_filter_up.pushValue(dechirp_up))
-        dechirped_down_lowpassed = np.abs(baseband_filter_down.pushValue(dechirp_down))
-
-        demodulated = np.sign(dechirped_down_lowpassed - dechirped_up_lowpassed)
+        demodulated = np.sign(up_coh - down_coh)
 
         clock_pulses = clockrecovery.PushValue(demodulated)
 
         if clock_pulses:
             output_bits.append(int((demodulated / 2 + 1)))
-        # correct for rotations
-        if n_baseband % samples_per_symbol_baseband == 0:
-            fftd = np.fft.fft(fft_buffer)
-            # print(len(fft_buffer))
-            max_index = np.argmax(np.abs(fftd))
-            n_baseband += max_index
-            if max_index != 0:
-                print(f"ADJUSTED: {max_index}")
-           # print(max_index)
-            fft_buffer = []
 
         dummy4.append(clockrecovery.dummy_ - 1.1)
 
-        dummy.append(dechirped_up_lowpassed)
-        dummy2.append(dechirped_down_lowpassed)
+        dummy.append(up_coh)
+        dummy2.append(down_coh)
         dumm3.append(demodulated + 2)
 
 print(output_bits)
@@ -100,9 +87,3 @@ plt.plot(dumm3)
 plt.plot(dummy4)
 # plt.plot(np.abs(np.fft.fft(dummy)))
 plt.show()
-
-
-
-
-
-
