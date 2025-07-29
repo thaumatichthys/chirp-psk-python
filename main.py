@@ -10,7 +10,7 @@ print(f"Carrier sample rate = {CARRIER_SAMPLERATE}\nChirp BW = {CHIRP_BW_BASEBAN
 input_text = ("~~~~~~~~~~~~~~~~~~~a wrinkle in falkland by margaret thatcher, an account of britdain, an extremely dank collection of events" +
                "\nDid you know that if you eat rocks, it will taste very bad? I did not, personally.")
 
-# input_text = "testtestasdaqwiohqdnad4frsd243t4y53r"
+input_text = "~~~falkland margaret thatcher britdainisg kekw"
 
 data_input = np.unpackbits(np.frombuffer(input_text.encode("utf-8"), dtype=np.uint8)) # * 0 + 1
 data_length = len(data_input)

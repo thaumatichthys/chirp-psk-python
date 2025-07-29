@@ -3,9 +3,11 @@ from parameters import *
 from scipy.io import wavfile
 import matplotlib.pyplot as plt
 from misc import *
+from clockrecovery import *
+from text_decoder import *
 
 
-samplerate, data = wavfile.read("output.wav")
+samplerate, data = wavfile.read("chirpss-9.wav")
 
 duration = len(data) / samplerate
 
@@ -18,10 +20,15 @@ q_filter = StreamingFIR(taps)
 baseband_filter_up = StreamingFIR(taps_baseband)
 baseband_filter_down = StreamingFIR(taps_baseband)
 
+clockrecovery = ClockRecovery(CHIRP_BW_BASEBAND_SAMPLERATE, DATA_BITRATE, 2)
 
 dummy = []
 dummy2 = []
 dumm3 = []
+dummy4 = []
+
+output_bits = []
+
 n_baseband = 0
 
 fft_buffer = []
@@ -49,7 +56,7 @@ for i in range(len(times) - random_offset):
 
         baseband_phase = np.pi * (n_baseband * n_baseband / samples_per_symbol_baseband - n_baseband)
         baseband_chirp_up = np.exp(1j * baseband_phase)
-        baseband_chirp_down = np.conj(baseband_chirp_up)
+        baseband_chirp_down = -np.conj(baseband_chirp_up)
 
         dechirp_up = baseband * baseband_chirp_up
         dechirp_down = baseband * baseband_chirp_down
@@ -61,6 +68,10 @@ for i in range(len(times) - random_offset):
 
         demodulated = np.sign(dechirped_down_lowpassed - dechirped_up_lowpassed)
 
+        clock_pulses = clockrecovery.PushValue(demodulated)
+
+        if clock_pulses:
+            output_bits.append(int((demodulated / 2 + 1)))
         # correct for rotations
         if n_baseband % samples_per_symbol_baseband == 0:
             fftd = np.fft.fft(fft_buffer)
@@ -72,15 +83,21 @@ for i in range(len(times) - random_offset):
            # print(max_index)
             fft_buffer = []
 
-
+        dummy4.append(clockrecovery.dummy_ - 1.1)
 
         dummy.append(dechirped_up_lowpassed)
         dummy2.append(dechirped_down_lowpassed)
         dumm3.append(demodulated + 2)
 
+print(output_bits)
+info, result_bytes = try_alignments(output_bits)
+print("Best alignment info:")
+print(info)
+
 plt.plot(dummy)
 plt.plot(dummy2)
 plt.plot(dumm3)
+plt.plot(dummy4)
 # plt.plot(np.abs(np.fft.fft(dummy)))
 plt.show()
 
