@@ -48,11 +48,11 @@ tiled = np.concatenate(tiled_chunks)
 filtered_signal = apply_fir(tiled, taps)  # this is baseband
 
 print(len(filtered_signal))
-upconverted_signal = (filtered_signal * carrier_complex).real
+upconverted_signal = (filtered_signal * carrier_complex).imag
 
 signal_out = upconverted_signal / np.max(np.abs(upconverted_signal))
 
-signal_out += (np.random.random(len(signal_out)) - 0.5) * 0
+signal_out += (np.random.random(len(signal_out)) - 0.5)  * 0 * 8
 
 
 wavfile.write("output.wav", CARRIER_SAMPLERATE, signal_out)
