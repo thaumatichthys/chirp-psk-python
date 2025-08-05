@@ -9,7 +9,7 @@ from CircularMean import *
 from stft import *
 from moving_average import *
 
-samplerate, data = wavfile.read("chirpss-15.wav")
+samplerate, data = wavfile.read("output.wav")
 
 duration = len(data) / samplerate
 
@@ -23,7 +23,7 @@ baseband_filter_down = StreamingFIR(taps_baseband)
 
 input_filter = StreamingFIR(taps_input)
 
-clockrecovery = ClockRecovery(CHIRP_BW_BASEBAND_SAMPLERATE, DATA_BITRATE, 1)
+clockrecovery = ClockRecovery(DATA_BITRATE * CLOCK_RECOVERY_OVERSAMPLE_RATIO, DATA_BITRATE, 1)
 
 dummy = []
 dummy2 = []
@@ -68,7 +68,9 @@ for i in range(len(times) - random_offset):
 
     # run at baseband rate
 
-    n_baseband = (i / OVERSAMPLE_RATIO + n_baseband_corr) % samples_per_symbol_baseband
+
+    # n_baseband = (i % samples_per_symbol_carrier) / OVERSAMPLE_RATIO + n_baseband_corr
+    n_baseband = ((i + n_baseband_corr) % samples_per_symbol_carrier) / OVERSAMPLE_RATIO
 
     baseband = i_baseband + 1j * q_baseband
 
@@ -85,15 +87,17 @@ for i in range(len(times) - random_offset):
     if i == 0:
         up_fft_buf = []
         down_fft_buf = []
-    if n_baseband % samples_per_symbol_baseband == 0 and i > 0:
+    # if n_baseband % samples_per_symbol_baseband == 0 and i > 0:
+    if (i + n_baseband_corr) % samples_per_symbol_carrier == 0 and i > 0:
         if len(down_fft_buf) == samples_per_symbol_carrier:
-            down_fft = fold_spectrum(np.abs(np.fft.fft(down_fft_buf)), OVERSAMPLE_RATIO)
-            up_fft = fold_spectrum(np.abs(np.fft.fft(up_fft_buf)), OVERSAMPLE_RATIO)
+            down_fft = fold_spectrum(np.abs(np.fft.fft(down_fft_buf) ** 2), OVERSAMPLE_RATIO)
+            up_fft = fold_spectrum(np.abs(np.fft.fft(up_fft_buf) ** 2), OVERSAMPLE_RATIO)
 
             up_folded = up_fft[:int(len(up_fft) / 2)] + up_fft[int(len(up_fft) / 2):][::-1]
             down_folded = down_fft[:int(len(down_fft) / 2)] + down_fft[int(len(down_fft) / 2):][::-1]
 
             acq_avg += np.float64(down_folded + up_folded)
+            print(len(acq_avg))
             if acq_avg_counter % ACQ_AVERAGES == 0:
                 index = np.argmax(acq_avg)
 
@@ -103,7 +107,7 @@ for i in range(len(times) - random_offset):
                 else:
                     print("LOCKED")
                 # print(f"CORRECTION {index}")
-                n_baseband_corr += index
+                n_baseband_corr += index * OVERSAMPLE_RATIO
                 acq_avg *= 0
             acq_avg_counter += 1
 
@@ -116,7 +120,7 @@ for i in range(len(times) - random_offset):
             # peak_ind = np.argmax(summed)
             # peak_val = summed[peak_ind]
 
-            # plt.plot(acq_avg)
+            # plt.plot(up_fft_buf)
 
 
             # demodulated = np.max(up_fft) - np.max(down_fft)
@@ -130,7 +134,7 @@ for i in range(len(times) - random_offset):
     # up_coh_raw, dphi_up = up_coherence.PushValue(dechirp_up)
     # down_coh_raw, dphi_down = down_coherence.PushValue(dechirp_down)
 
-    if i % OVERSAMPLE_RATIO == 0:
+    if i % samples_per_clk_recovery_symbol == 0:
         # up_coh = np.abs(up_coh_raw)
        #  down_coh = np.abs(down_coh_raw)
 

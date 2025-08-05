@@ -3,6 +3,7 @@ from misc import *
 import matplotlib.pyplot as plt
 from scipy.io import wavfile
 from parameters import *
+from packet_decoder import *
 
 # REPLACEMENT FOR MAIN, AVOIDS OVERSAMPLING BY GENERATING AT CARRIER RATE TO BEGIN WITH
 
@@ -11,9 +12,13 @@ print(f"Carrier sample rate = {CARRIER_SAMPLERATE}\nChirp BW = {CHIRP_BW_BASEBAN
 input_text = ("~~~~~~~~~~~~~~~~~~~a wrinkle in falkland by margaret thatcher, an account of britdain, an extremely dank collection of events" +
                "\nDid you know that if you eat rocks, it will taste very bad? I did not, personally.")
 
-input_text = "~~~~~~~the quick brown fox jumps over the lazy dog."
+# input_text = "~~~~~~~the quick brown fox jumps over the lazy dog."
+# input_text = "!!!!"
+# data_input = np.unpackbits(np.frombuffer(input_text.encode("utf-8"), dtype=np.uint8)) # * 0 + 1
+data_input = np.frombuffer(input_text.encode("utf-8"), dtype=np.uint8)
+encoder = PacketDecoder()
+data_input = encoder.encodeData(data_input)
 
-data_input = np.unpackbits(np.frombuffer(input_text.encode("utf-8"), dtype=np.uint8)) # * 0 + 1
 data_length = len(data_input)
 
 
@@ -54,10 +59,10 @@ upconverted_signal = (filtered_signal * carrier_complex).imag
 
 signal_out = upconverted_signal / np.max(np.abs(upconverted_signal))
 
-signal_out += (np.random.random(len(signal_out)) - 0.5)  * 20
+signal_out += (np.random.random(len(signal_out)) - 0.5)  * 0
 
 
-wavfile.write("output.wav", CARRIER_SAMPLERATE, signal_out)
+wavfile.write("output.wav", int(CARRIER_SAMPLERATE), (signal_out * 10000).astype(np.int16))
 
 plt.plot(np.abs(np.fft.rfft(signal_out)))
 # plt.plot(signal_out)
